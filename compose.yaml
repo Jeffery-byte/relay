@@ -15,8 +15,18 @@ services:
       timeout: 5s
       retries: 30
 
+  kafka-storage-init:
+    image: alpine:3.22
+    user: "0:0"
+    command: ["sh", "-c", "chown 1000:1000 /data"]
+    volumes:
+      - kafka-data:/data
+
   kafka:
     image: apache/kafka:3.9.1
+    depends_on:
+      kafka-storage-init:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:9092:9092"
     environment:
