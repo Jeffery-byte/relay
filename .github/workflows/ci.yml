@@ -1,0 +1,31 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.2'
+          cache: true
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: docker compose up --build -d
+      - run: go test -race -tags integration ./internal/relay -count=1
+      - run: python3 scripts/smoke.py
+      - run: python3 scripts/recovery.py
+      - name: Recover after transient failures
+        run: |
+          DEMO_FAIL_ATTEMPTS=2 docker compose up -d --force-recreate worker
+          EXPECT_ATTEMPTS=3 python3 scripts/smoke.py
+      - name: Stop retrying at the configured limit
+        run: |
+          DEMO_FAIL_ATTEMPTS=3 docker compose up -d --force-recreate worker
+          EXPECT_ATTEMPTS=3 EXPECT_STATUS=failed python3 scripts/smoke.py
+      - if: always()
+        run: docker compose logs --no-color
+      - if: always()
+        run: docker compose down -v

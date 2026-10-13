@@ -30,3 +30,7 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local application binaries and Python caches
+bin/
+__pycache__/
