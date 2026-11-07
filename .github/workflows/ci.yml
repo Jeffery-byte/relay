@@ -17,6 +17,8 @@ jobs:
       - run: go test -race -tags integration ./internal/relay -count=1
       - run: python3 scripts/smoke.py
       - run: python3 scripts/recovery.py
+      - name: Recover a job after SIGKILL during processing
+        run: python3 scripts/crash_recovery.py
       - name: Recover after transient failures
         run: |
           DEMO_FAIL_ATTEMPTS=2 docker compose up -d --force-recreate worker
