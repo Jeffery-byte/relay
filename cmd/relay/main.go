@@ -41,6 +41,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	demoDelay, err := intEnv("DEMO_PROCESS_DELAY_MS", 0, 0, 10000)
+	if err != nil {
+		return err
+	}
 	config, err := pgxpool.ParseConfig(env("DATABASE_URL", "postgres://relay:relay@localhost:5432/relay?sslmode=disable"))
 	if err != nil {
 		return errors.New("invalid DATABASE_URL")
@@ -62,7 +66,7 @@ func run() error {
 	brokers := strings.Split(env("KAFKA_BROKERS", "localhost:9092"), ",")
 	topic := env("KAFKA_TOPIC", "relay.jobs")
 	if os.Args[1] == "worker" {
-		return worker(ctx, store, brokers, topic, demoFailures)
+		return worker(ctx, store, brokers, topic, demoFailures, time.Duration(demoDelay)*time.Millisecond)
 	}
 	return api(ctx, store, brokers, topic)
 }
@@ -117,7 +121,7 @@ func dispatch(ctx context.Context, store *relay.Store, writer *kafka.Writer) {
 	}
 }
 
-func worker(ctx context.Context, store *relay.Store, brokers []string, topic string, demoFailures int) error {
+func worker(ctx context.Context, store *relay.Store, brokers []string, topic string, demoFailures int, demoDelay time.Duration) error {
 	reader := kafka.NewReader(kafka.ReaderConfig{Brokers: brokers, Topic: topic, GroupID: env("KAFKA_GROUP", "relay.workers"), StartOffset: kafka.FirstOffset, CommitInterval: 0, MinBytes: 1, MaxBytes: 1e6, MaxWait: time.Second, WatchPartitionChanges: true})
 	defer reader.Close()
 	slog.Info("worker started", "topic", topic)
@@ -141,8 +145,16 @@ func worker(ctx context.Context, store *relay.Store, brokers []string, topic str
 			// Retry THIS message on storage failures. Fetching another message could
 			// later commit past the failed one in the same partition.
 			for {
-				attempt, cancel := context.WithTimeout(ctx, 15*time.Second)
-				err = store.Process(attempt, event.JobID, func(numbers []float64, attempt int) (relay.Report, error) {
+				processCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+				err = store.Process(processCtx, event.JobID, func(numbers []float64, attempt int) (relay.Report, error) {
+					// Test-only delay occurs after Process locks the job row and before
+					// its result/attempt transaction commits. Disabled by default.
+					if demoDelay > 0 {
+						slog.Warn("demo processing delay", "job_id", event.JobID, "attempt", attempt)
+						if !pause(processCtx, demoDelay) {
+							return relay.Report{}, processCtx.Err()
+						}
+					}
 					if attempt <= demoFailures {
 						return relay.Report{}, errors.New("injected demo failure")
 					}
