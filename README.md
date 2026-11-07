@@ -127,6 +127,21 @@ docker compose stop kafka
 docker compose start kafka
 ```
 
+To test a crash during execution, run this against a dedicated demo stack:
+
+```sh
+python3 scripts/crash_recovery.py
+```
+
+The script recreates the worker service at scale one with a temporary processing
+delay. It waits for a job-specific marker emitted after the database row lock,
+sends `SIGKILL`, and checks that the uncommitted attempt/result rolled back. It
+then starts a worker without the delay and verifies that Kafka redelivery stores
+one completed result and one attempt record. The script restores the worker with
+demo injection disabled, including on failure; it does not preserve a custom
+worker scale or demo configuration. The normal outage script above tests a
+different case: submitting while the worker or broker is already stopped.
+
 For a deterministic retry demonstration, recreate workers with failure injection:
 
 ```sh
@@ -158,12 +173,13 @@ go test -race -tags integration ./internal/relay -count=1
 # Requires the full Compose stack and Python 3 (standard library only).
 python3 scripts/smoke.py
 python3 scripts/recovery.py
+python3 scripts/crash_recovery.py
 ```
 
 Integration tests cover concurrent idempotent submissions, publish failures,
 concurrent redelivery, retry backoff, terminal failure, and interrupted
 transactions. GitHub Actions runs these checks plus the Docker pipeline,
-worker/broker outage checks, and injected retry scenarios.
+worker/broker outage checks, a mid-processing SIGKILL check, and injected retry scenarios.
 
 Run services directly against the Compose infrastructure:
 
@@ -181,6 +197,7 @@ go run ./cmd/relay worker
 | `HTTP_ADDR` | `:8080` | API bind address |
 | `MAX_ATTEMPTS` | `3` | Attempts for newly accepted jobs, from 1 to 10 |
 | `DEMO_FAIL_ATTEMPTS` | `0` | Worker-only failure injection, from 0 to 10 |
+| `DEMO_PROCESS_DELAY_MS` | `0` | Worker-only delay inside processing, from 0 to 10,000 ms; crash-test demonstration only |
 | `RELAY_TEST_DATABASE_URL` | Same local database URL | Integration test database |
 
 Compose sets internal service addresses automatically. The PostgreSQL and Kafka
