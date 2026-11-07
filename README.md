@@ -9,7 +9,7 @@ worker restarts, retries, and duplicate messages.
 
 ## Run
 
-Requirements: Docker with Docker Compose v2. Go 1.24+ is needed only for local
+Requirements: Docker with Docker Compose v2. Go 1.27.3+ is needed only for local
 development; the Docker build supplies its own toolchain.
 
 ```sh
@@ -216,3 +216,10 @@ boundary. External effects such as payments or emails would need their own
 idempotency guarantees; the current duplicate protection covers database report
 results. Malformed Kafka records and unknown job IDs are logged and acknowledged
 so they cannot indefinitely block a partition. A dead-letter topic is future work.
+
+## Dependency security
+
+CI runs `go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...` in addition
+to the unit, database integration, and worker-recovery checks. Dependabot checks
+Go modules, Actions, and the Docker base images weekly. A passing vulnerability
+scan describes the database at the time of the run, not a permanent guarantee.
