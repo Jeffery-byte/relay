@@ -83,6 +83,7 @@ services:
     environment:
       <<: *relay-env
       DEMO_FAIL_ATTEMPTS: ${DEMO_FAIL_ATTEMPTS:-0}
+      DEMO_PROCESS_DELAY_MS: ${DEMO_PROCESS_DELAY_MS:-0}
     depends_on:
       postgres:
         condition: service_healthy
