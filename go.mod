@@ -3,7 +3,7 @@ module github.com/Jeffery-byte/relay
 go 1.27.3
 
 require (
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/segmentio/kafka-go v0.4.51
 )
 
